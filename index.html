@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudyBot — AI Student Assistant</title>
+<link href="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_API_KEY" rel="stylesheet" />
+<style>
+  /*
+    StudyBot — single-file student chatbot.
+    Runs entirely in the browser (no backend).
+
+    Design goals:
+    - Light academic theme
+    - Clear user vs AI separation
+    - Beginner-friendly comments
+    - Responsive layout (desktop + mobile)
+  */
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Light academic palette */
+    --bg: #f6f9ff;
+    --bg2: #ffffff;
+    --bg3: #eef4ff;
+
+    --text: #0f172a;
+    --text2: #4b5563;
+    --text3: #6b7280;
+
+    --border: rgba(15, 23, 42, 0.10);
+    --border2: rgba(15, 23, 42, 0.18);
+
+    --accent: #2563eb;
+    --accent2: #1d4ed8;
+    --accentSoft: rgba(37, 99, 235, 0.12);
+
+    --green: #16a34a;
+
+    --radius: 14px;
+    --radius-sm: 10px;
+
+    --font: 'Sora', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.14), transparent),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  /* Top bar */
+  nav {
+    width: 100%;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -.3px;
+    white-space: nowrap;
+  }
+  .logo-text span { color: var(--accent); }
+
+  .api-wrap {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .api-wrap label {
+    font-size: 12px;
+    color: var(--text2);
+    font-weight: 500;
+  }
+
+  .api-wrap input {
+    width: min(520px, 60vw);
+    min-width: 220px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    outline: none;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+
+  .api-wrap input:focus {
+    border-color: rgba(37,99,235,0.55);
+    box-shadow: 0 0 0 4px var(--accentSoft);
+  }
+
+  .btn {
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border2);
+    background: var(--bg2);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12.5px;
+    transition: transform .1s, background .15s, border-color .15s;
+    user-select: none;
+  }
+
+  .btn:hover { background: var(--bg3); border-color: rgba(37,99,235,0.35); }
+  .btn:active { transform: scale(.98); }
+  .btn.primary {
+    border: none;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: white;
+  }
+  .btn.primary:hover { filter: brightness(0.98); }
+
+  .key-status {
+    font-size: 12px;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .key-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border2);
+  }
+  .key-dot.ok { background: var(--green); }
+
+  main {
+    width: 100%;
+    max-width: 900px;
+    padding: 22px 16px 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 1;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 10px 0 2px;
+  }
+  .hero h1 {
+    font-size: 28px;
+    font-weight: 650;
+    letter-spacing: -.6px;
+    margin-bottom: 6px;
+  }
+  .hero h1 span {
+    background: linear-gradient(90deg, var(--accent), #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: 14px;
+    color: var(--text2);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  /* Quick subject cards (optional) */
+  .subjects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .subject-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 14px;
+    cursor: pointer;
+    transition: transform .12s, border-color .15s, background .15s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .subject-card:hover { border-color: rgba(37,99,235,0.35); background: var(--bg3); transform: translateY(-1px); }
+  .subject-card:active { transform: scale(.99); }
+  .subject-icon { font-size: 20px; }
+  .subject-info { display: flex; flex-direction: column; gap: 2px; }
+  .subject-name { font-size: 13px; font-weight: 650; }
+  .subject-count { font-size: 11px; color: var(--text2); }
+
+  /* Chat */
+  .chat-shell {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, 0.05);
+  }
+
+  .chat-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #ffffff, var(--bg3));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .chat-header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .chat-header-info h3 { font-size: 14px; font-weight: 700; }
+  .chat-header-info p { font-size: 12px; color: var(--text2); }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+  }
+  .messages::-webkit-scrollbar { width: 8px; }
+  .messages::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.18); border-radius: 999px; }
+
+  .msg {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    animation: msgIn .2s ease both;
+  }
+  .msg.user { flex-direction: row-reverse; }
+  @keyframes msgIn { from{opacity:0; transform: translateY(8px)} to{opacity:1; transform: translateY(0)} }
+
+  .msg-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text2);
+    flex-shrink: 0;
+    margin-top: 2px;
+    position: relative;
+  }
+  .msg.user .msg-avatar {
+    background: rgba(37,99,235,0.12);
+    border-color: rgba(37,99,235,0.22);
+    color: var(--accent);
+  }
+
+  .msg-meta {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .msg-body { max-width: 82%; display: flex; flex-direction: column; gap: 8px; }
+  .msg.user .msg-body { align-items: flex-end; }
+
+  .bubble {
+    padding: 11px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--text);
+    background: #ffffff;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .msg.user .bubble {
+    background: rgba(37,99,235,0.12);
+    border-color: rgba(37,99,235,0.22);
+  }
+
+  /* AI response includes a clearer labeled section */
+  .content-card {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: #fff;
+  }
+  .content-card-header {
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text2);
+  }
+  .content-card-header .tag {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(37,99,235,0.12);
+    border: 1px solid rgba(37,99,235,0.22);
+    color: var(--accent);
+    font-weight: 800;
+  }
+  .content-card-body {
+    padding: 14px 14px;
+    font-size: 13.5px;
+    line-height: 1.85;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink .7s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Typing indicator */
+  .typing-wrap { display: flex; gap: 10px; align-items: flex-start; }
+  .typing-bubble {
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(15,23,42,0.35);
+    animation: bounce 1.2s infinite;
+  }
+  .dot:nth-child(2){animation-delay:.15s} .dot:nth-child(3){animation-delay:.3s}
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:.5} 30%{transform:translateY(-4px);opacity:1} }
+
+  /* File attachments */
+  .file-section { width: 100%; margin-top: 10px; }
+  .file-section-label {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+  }
+  .file-section-label::before { content:''; flex:1; height:1px; background: var(--border); }
+  .file-section-label::after  { content:''; flex:1; height:1px; background: var(--border); }
+
+  .file-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  .file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+  }
+  .file-meta { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--mono);
+  }
+  .file-size { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .dl-btn {
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+  .dl-btn:hover { background: var(--bg3); border-color: rgba(37,99,235,0.35); color: var(--accent); }
+  .dl-btn.done { background: rgba(22,163,74,0.08); border-color: rgba(22,163,74,0.25); color: var(--green); cursor: default; }
+
+  /* Chips */
+  .chips {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: rgba(255,255,255,0.75);
+  }
+  .chip {
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text2);
+    cursor: pointer;
+    font-weight: 650;
+    transition: border-color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: rgba(37,99,235,0.35); background: var(--bg3); color: var(--accent); }
+
+  /* Input bar fixed bottom (within page) */
+  .input-bar {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 14px;
+    width: min(900px, calc(100% - 28px));
+    background: rgba(255,255,255,0.85);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    box-shadow: 0 10px 35px rgba(15,23,42,0.07);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+  }
+
+  .input-bar input {
+    flex: 1;
+    font-size: 13.5px;
+    font-family: var(--font);
+    padding: 11px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .input-bar input:focus {
+    border-color: rgba(37,99,235,0.55);
+    box-shadow: 0 0 0 4px var(--accentSoft);
+  }
+  .input-bar input::placeholder { color: #9ca3af; }
+  .input-bar input:disabled { opacity: .55; cursor: not-allowed; }
+
+  .send-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform .1s, filter .15s;
+  }
+  .send-btn:hover:not(:disabled) { filter: brightness(0.98); }
+  .send-btn:active:not(:disabled) { transform: scale(.95); }
+  .send-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  footer {
+    width: 100%;
+    text-align: center;
+    padding: 18px;
+    font-size: 12px;
+    color: var(--text3);
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+    background: rgba(255,255,255,0.55);
+  }
+
+  @media (max-width: 600px) {
+    .api-wrap input { width: 66vw; min-width: 140px; }
+    main { padding-bottom: 120px; }
+    .msg-body { max-width: 90%; }
+    .subjects-grid { grid-template-columns: repeat(2, 1fr); }
+    .input-bar { bottom: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">🎓</div>
+  <span class="logo-text">Study<span>Bot</span></span>
+
+  <!-- API key area (student-provided, never hardcoded) -->
+  <div class="api-wrap">
+    <label for="apiKey">API key</label>
+    <input id="apiKey" type="password" placeholder="Paste Google Gemini API key (AIza...)" autocomplete="off" />
+    <button class="btn primary" id="saveKeyBtn" type="button">Save Key</button>
+    <div class="key-status" id="keyStatus" aria-live="polite">
+      <span class="key-dot" id="keyDot"></span>
+      <span id="keyStatusText">Key not saved</span>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div class="hero">
+    <h1>Your <span>AI Student</span> Assistant</h1>
+    <p>Ask any academic question — get an instant AI explanation with clear steps. (Runs fully in your browser.)</p>
+  </div>
+
+  <div class="subjects-grid" aria-label="Quick topics">
+    <div class="subject-card" onclick="quickAsk('Explain calculus: limits, derivatives and integration with examples')">
+      <span class="subject-icon">∫</span>
+      <div class="subject-info"><div class="subject-name">Calculus</div><div class="subject-count">Study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain Python programming basics: variables, loops, functions and OOP with examples')">
+      <span class="subject-icon">🐍</span>
+      <div class="subject-info"><div class="subject-name">Python</div><div class="subject-count">Study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain biology: cell structure, genetics, DNA replication and evolution')">
+      <span class="subject-icon">🧬</span>
+      <div class="subject-info"><div class="subject-name">Biology</div><div class="subject-count">Study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain chemistry: periodic table trends, chemical bonding and reactions')">
+      <span class="subject-icon">⚗️</span>
+      <div class="subject-info"><div class="subject-name">Chemistry</div><div class="subject-count">Study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain physics: Newton laws, energy, waves and electricity')">
+      <span class="subject-icon">⚡</span>
+      <div class="subject-info"><div class="subject-name">Physics</div><div class="subject-count">Study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('How do I write a good academic essay? Explain structure, PEEL paragraphs and citations')">
+      <span class="subject-icon">📝</span>
+      <div class="subject-info"><div class="subject-name">Writing</div><div class="subject-count">Study files</div></div>
+    </div>
+  </div>
+
+  <div class="chat-shell" id="chatShell">
+    <div class="chat-header">
+      <div class="chat-header-avatar">🤖</div>
+      <div class="chat-header-info">
+        <h3>StudyBot AI</h3>
+        <p>Explain clearly • step-by-step • session history</p>
+      </div>
+    </div>
+
+    <div class="messages" id="messages" aria-live="polite"></div>
+
+    <div class="chips" id="chips">
+      <button class="chip" type="button" onclick="chipSend('What is the Pythagorean theorem and how do I use it?')">Pythagorean theorem</button>
+      <button class="chip" type="button" onclick="chipSend('How does photosynthesis work step by step?')">Photosynthesis</button>
+      <button class="chip" type="button" onclick="chipSend('Explain Newton\'s three laws of motion with examples')">Newton's laws</button>
+      <button class="chip" type="button" onclick="chipSend('What is DNA and how does replication work?')">DNA replication</button>
+      <button class="chip" type="button" onclick="chipSend('Give me the best exam revision techniques that actually work')">Exam tips</button>
+    </div>
+  </div>
+</main>
+
+<div class="input-bar">
+  <input id="userInput" type="text" placeholder="Ask a question... (e.g., 'Explain photosynthesis step by step')" />
+  <button class="send-btn" id="sendBtn" type="button" onclick="sendMessage()" title="Send">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"></line>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+  </button>
+</div>
+
+<footer>StudyBot AI • Student-friendly learning assistant</footer>
+
+<script>
+  // ────────────────────────────────────────────────────────────────────────────
+  // FILE DATABASE (student-downloadable notes)
+  // You can replace these with your own files later.
+  // ────────────────────────────────────────────────────────────────────────────
+  const FILES = {
+    calculus: [
+      { name:"Calculus_Notes_Ch1-5.txt", size:"2.4 KB", icon:"📄", content:`CALCULUS STUDY NOTES — Chapters 1 to 5\n=====================================\n\nCHAPTER 1: LIMITS AND CONTINUITY\n• lim(x to a) f(x) = L means f(x) approaches L as x approaches a\n• Squeeze Theorem: if g(x) <= f(x) <= h(x) and lim g = lim h = L, then lim f = L\n• Continuity at a: lim(x to a) f(x) = f(a)\n• L'Hopital's Rule: for 0/0 or inf/inf, lim f/g = lim f'/g'\n\nCHAPTER 2: DERIVATIVES\n• Definition: f'(x) = lim(h to 0) [f(x+h) - f(x)] / h\n• Power Rule: d/dx(x^n) = n*x^(n-1)\n• Product Rule: (fg)' = f'g + fg'\n• Quotient Rule: (f/g)' = (f'g - fg') / g^2\n• Chain Rule: d/dx[f(g(x))] = f'(g(x)) * g'(x)\n\nCHAPTER 3: INTEGRATION\n• Anti-derivative: integral of x^n dx = x^(n+1)/(n+1) + C\n• Fundamental Theorem Part 1: d/dx integral[a to x] f(t)dt = f(x)\n• Fundamental Theorem Part 2: integral[a to b] f(x)dx = F(b) - F(a)\n• Substitution: let u = g(x), du = g'(x)dx\n• Integration by Parts: integral u dv = uv - integral v du\n\nCHAPTER 4: APPLICATIONS OF DERIVATIVES\n• Critical points: f'(x) = 0 or undefined\n• Increasing: f'(x) > 0, Decreasing: f'(x) < 0\n• Concave up: f''(x) > 0, Concave down: f''(x) < 0\n• Optimization: find critical points, test endpoints\n• Related rates: differentiate both sides with respect to t\n\nCHAPTER 5: SEQUENCES AND SERIES\n• Geometric Series: sum of ar^n = a/(1-r) for |r| < 1\n• Taylor Series: f(x) = sum f^(n)(a)/n! * (x-a)^n\n• e^x = 1 + x + x^2/2! + x^3/3! + ...\n• sin(x) = x - x^3/3! + x^5/5! - ...\n• cos(x) = 1 - x^2/2! + x^4/4! - ...\n` },
+      { name:"Derivative_Formula_Sheet.txt", size:"12 KB", icon:"📃", content:`DERIVATIVE FORMULA SHEET\n========================\n\nBASIC RULES\nd/dx(c) = 0\nd/dx(x) = 1\nd/dx(x^n) = n*x^(n-1)\nd/dx(cf) = c*f'\nd/dx(f+g) = f' + g'\n\nPRODUCT AND QUOTIENT\nd/dx(fg) = f'g + fg'\nd/dx(f/g) = (f'g - fg') / g^2\n\nCHAIN RULE\nd/dx[f(g(x))] = f'(g(x)) * g'(x)\n\nTRIGONOMETRIC\nd/dx(sin x) = cos x\nd/dx(cos x) = -sin x\nd/dx(tan x) = sec^2(x)\nd/dx(csc x) = -csc(x)*cot(x)\nd/dx(sec x) = sec(x)*tan(x)\nd/dx(cot x) = -csc^2(x)\n\nINVERSE TRIG\nd/dx(arcsin x) = 1/sqrt(1-x^2)\nd/dx(arccos x) = -1/sqrt(1-x^2)\nd/dx(arctan x) = 1/(1+x^2)\n\nEXPONENTIAL AND LOG\nd/dx(e^x) = e^x\nd/dx(a^x) = a^x * ln(a)\nd/dx(ln x) = 1/x\nd/dx(log_a x) = 1/(x*ln(a))\n` }
+    ],
+    python: [
+      { name:"Python_Cheat_Sheet.txt", size:"8 KB", icon:"📃", content:`PYTHON CHEAT SHEET\n==================\n\nDATA TYPES\nint: 42, -7\nfloat: 3.14\nstr: "hello"\nbool: True, False\nlist: [1, 2, 3]\ntuple: (1, 2, 3)\ndict: {"key": "val"}\nset: {1, 2, 3}\n\nCONTROL FLOW\nif x > 0:\n    print("positive")\nelif x == 0:\n    print("zero")\nelse:\n    print("negative")\n\nfor i in range(10):\n    print(i)\n\nFUNCTIONS\ndef greet(name, greeting="Hello"):\n    return f"{greeting}, {name}!"\n\nCLASSES\nclass Dog:\n    def __init__(self, name):\n        self.name = name\n    def bark(self):\n        return f"{self.name} barks!"\n` }
+    ],
+    biology: [
+      { name:"Biology_Revision_Guide.txt", size:"10 KB", icon:"📃", content:`BIOLOGY REVISION GUIDE\n======================\n\nCELL THEORY\n1. All living things are made of cells\n2. Cells are the basic unit of life\n3. All cells come from pre-existing cells\n\nDNA & REPLICATION (high level)\n- DNA is copied so cells inherit genetic information\n- Helicase unwinds the double helix\n- DNA polymerase builds new matching strands\n- Ligase joins fragments\n\nNATURAL SELECTION (high level)\n1. Variation exists\n2. Traits are inherited\n3. More offspring than survive\n4. Best-adapted survive and reproduce\n` }
+    ],
+    chemistry: [
+      { name:"Periodic_Table_Notes.txt", size:"6 KB", icon:"📃", content:`PERIODIC TABLE REFERENCE NOTES\n================================\n\nPERIODIC TRENDS\n- Atomic radius: increases down a group, decreases across a period\n- Electronegativity: increases across a period, decreases down a group\n- Ionisation energy: increases across, decreases down\n` }
+    ],
+    physics: [
+      { name:"Physics_Formula_Sheet.txt", size:"7 KB", icon:"📃", content:`PHYSICS FORMULA SHEET\n======================\n\nKINEMATICS\nv = u + at\ns = ut + 1/2*a*t^2\n\nFORCES\nF = ma\nWeight W = mg\nMomentum p = mv\n\nWAVES\nv = f*lambda\n` }
+    ],
+    writing: [
+      { name:"Essay_Writing_Guide.txt", size:"4 KB", icon:"📃", content:`ESSAY WRITING GUIDE\n====================\n\nPEEL PARAGRAPH STRUCTURE\nP — Point: main idea\nE — Evidence: facts/data/quote\nE — Explanation: interpret evidence\nL — Link: connect back to question\n` }
+    ]
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // TOPIC DETECTION (for attaching study files)
+  // ────────────────────────────────────────────────────────────────────────────
+  const TOPIC_MAP = [
+    { kw:["calculus","derivative","integral","limit","differentiat","series","taylor","chain rule","product rule","integration"], topic:"calculus" },
+    { kw:["python","programming","code","coding","script","algorithm","function","class","loop","variable","oop","object"], topic:"python" },
+    { kw:["biology","bio","cell","genetics","evolution","ecosystem","photosynthesis","dna","rna","protein","mitosis","meiosis","organism"], topic:"biology" },
+    { kw:["chemistry","chem","element","periodic","reaction","bond","acid","base","mole","equilibrium","oxidation","molecule","compound"], topic:"chemistry" },
+    { kw:["physics","force","motion","wave","electric","quantum","energy","velocity","acceleration","momentum","gravity","newton","optics","magnetic"], topic:"physics" },
+    { kw:["essay","assignment","writing","paragraph","citation","reference","thesis","peel","academic","report","conclusion","introduction"], topic:"writing" }
+  ];
+
+  function detectTopic(text) {
+    const lower = text.toLowerCase();
+    for (const r of TOPIC_MAP) {
+      if (r.kw.some(k => lower.includes(k))) return r.topic;
+    }
+    return null;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // DOM HELPERS
+  // ────────────────────────────────────────────────────────────────────────────
+  const msgContainer = document.getElementById("messages");
+  const userInput = document.getElementById("userInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const chipsWrap = document.getElementById("chips");
+
+  let isBusy = false;
+  const conversationHistory = [];
+
+  function scrollBottom() { msgContainer.scrollTop = msgContainer.scrollHeight; }
+
+  function formatTime(d = new Date()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function setInputEnabled(enabled) {
+    userInput.disabled = !enabled;
+    sendBtn.disabled = !enabled;
+    isBusy = !enabled;
+  }
+
+  function addUserMessage(text) {
+    chipsWrap.style.display = "none";
+
+    const wrap = document.createElement("div");
+    wrap.className = "msg user";
+
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    meta.textContent = formatTime();
+
+    const body = document.createElement("div");
+    body.className = "msg-body";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+
+    body.appendChild(meta);
+    body.appendChild(bubble);
+
+    const av = document.createElement("div");
+    av.className = "msg-avatar";
+    av.textContent = "You";
+
+    wrap.appendChild(av);
+    wrap.appendChild(body);
+    msgContainer.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function showTyping() {
+    const wrap = document.createElement("div");
+    wrap.className = "typing-wrap";
+    wrap.id = "typing";
+    wrap.innerHTML = `
+      <div class="msg-avatar">AI</div>
+      <div class="typing-bubble" aria-label="AI is typing">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    `;
+    msgContainer.appendChild(wrap);
+    scrollBottom();
+  }
+
+  function removeTyping() {
+    const e = document.getElementById("typing");
+    if (e) e.remove();
+  }
+
+  function downloadFile(btn, file) {
+    const blob = new Blob([file.content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+    btn.textContent = "✓ Saved";
+    btn.classList.add("done");
+    btn.disabled = true;
+  }
+
+  function buildBotMessage(introText) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg";
+
+    const av = document.createElement("div");
+    av.className = "msg-avatar";
+    av.textContent = "AI";
+
+    const body = document.createElement("div");
+    body.className = "msg-body";
+
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    meta.textContent = formatTime();
+
+    // Intro bubble
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = introText;
+
+    body.appendChild(meta);
+    body.appendChild(bubble);
+
+    // Stream content card
+    const card = document.createElement("div");
+    card.className = "content-card";
+    card.innerHTML = `
+      <div class="content-card-header">
+        <span>📚 Explanation</span>
+        <span class="tag">Gemini</span>
+      </div>
+      <div class="content-card-body" id="stream-body-${Date.now()}"></div>
+    `;
+
+    body.appendChild(card);
+    wrap.appendChild(av);
+    wrap.appendChild(body);
+
+    msgContainer.appendChild(wrap);
+    scrollBottom();
+
+    const streamEl = card.querySelector(".content-card-body");
+
+    return {
+      streamEl,
+      addFiles(files) {
+        if (!files || !files.length) return;
+        const sec = document.createElement("div");
+        sec.className = "file-section";
+
+        const label = document.createElement("div");
+        label.className = "file-section-label";
+        label.textContent = "Related Study Files";
+        sec.appendChild(label);
+
+        files.forEach(f => {
+          const fileCard = document.createElement("div");
+          fileCard.className = "file-card";
+          fileCard.innerHTML = `
+            <div class="file-icon">${f.icon}</div>
+            <div class="file-meta">
+              <div class="file-name">${f.name}</div>
+              <div class="file-size">${f.size}</div>
+            </div>
+            <button class="dl-btn" type="button">Download</button>
+          `;
+          const btn = fileCard.querySelector(".dl-btn");
+          btn.addEventListener("click", () => downloadFile(btn, f));
+          sec.appendChild(fileCard);
+        });
+
+        body.appendChild(sec);
+        scrollBottom();
+      }
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // AI PROVIDER CALL (Google Gemini, streaming)
+  // How to swap providers:
+  // 1) Replace askGeminiStreaming() with askOtherProvider()
+  // 2) Update endpoint URL, headers, and parsing logic for streamed events
+  // 3) Keep the same callback contract: (onChunk, onDone, onError)
+  // ────────────────────────────────────────────────────────────────────────────
+
+  function getApiKey() {
+    // Gemini API key is expected to look like: AIza...
+    return localStorage.getItem("studybot_google_key") || "";
+  }
+
+  async function askGeminiStreaming({ userText, onChunk, onDone, onError }) {
+    conversationHistory.push({ role: "user", content: userText });
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      onError(new Error("API key not saved."));
+      return;
+    }
+
+    const system = `You are StudyBot: a friendly AI student assistant.
+
+When answering:
+- Give a direct 1-sentence answer first
+- Then explain with clear structure (numbered steps, bullet points, or short paragraphs)
+- Include relevant definitions/formulas/worked examples when useful
+- Use plain text only (no markdown asterisks/hashes)
+- Keep it exam-focused and concise (max ~300 words)
+- End with one memorable tip/mnemonic if relevant`;
+
+    try {
+      // Gemini streaming endpoint (Server-Sent Events):
+      // https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?key=YOUR_KEY
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [
+            { role: "user", parts: [{ text: userText }] }
+          ],
+          // Streaming enabled by using the :streamGenerateContent endpoint.
+        })
+      });
+
+      if (!res.ok) {
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          errMsg = data?.error?.message || errMsg;
+        } catch {}
+        throw new Error(errMsg);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+
+        for (const line of lines) {
+          // Gemini streaming typically sends JSON lines starting with:
+          // data: {...}
+          if (!line.startsWith("data:")) continue;
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+
+          try {
+            const parsed = JSON.parse(raw);
+
+            // Extract incremental text; structure may vary by version.
+            const deltaText =
+              parsed?.candidates?.[0]?.content?.parts?.[0]?.text ??
+              parsed?.candidates?.[0]?.content?.parts?.[0]?.text ??
+              parsed?.text;
+
+            if (typeof deltaText === "string" && deltaText.length) {
+              full += deltaText;
+              onChunk(deltaText);
+            }
+          } catch {
+            // Ignore non-JSON lines
+          }
+        }
+      }
+
+      conversationHistory.push({ role: "assistant", content: full });
+      onDone(full);
+    } catch (e) {
+      onError(e);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SEND MESSAGE
+  // ────────────────────────────────────────────────────────────────────────────
+
+  async function sendMessage() {
+    if (isBusy) return;
+
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      addUserMessage(text);
+      const ui = buildBotMessage("Please save your Gemini API key first:");
+      ui.streamEl.textContent =
+        "Paste your Google Gemini API key at the top (AIza...), then click Save Key.\n\n" +
+        "Tip: the key is stored only in your browser (localStorage).";
+      setInputEnabled(true);
+      return;
+    }
+
+    userInput.value = "";
+    addUserMessage(text);
+
+    setInputEnabled(false);
+    showTyping();
+
+    await new Promise(r => setTimeout(r, 220));
+    removeTyping();
+
+    const topic = detectTopic(text);
+    const introText = topic
+      ? `Here's an explanation for your question — plus ${FILES[topic].length} study file(s) you can download below:`
+      : `Here's my answer to your question:`;
+
+    const ui = buildBotMessage(introText);
+
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    ui.streamEl.appendChild(cursor);
+
+    await askGeminiStreaming({
+      userText: text,
+      onChunk: (chunk) => {
+        ui.streamEl.insertBefore(document.createTextNode(chunk), cursor);
+        scrollBottom();
+      },
+      onDone: () => {
+        cursor.remove();
+        if (topic && FILES[topic]) ui.addFiles(FILES[topic]);
+        setInputEnabled(true);
+        userInput.focus();
+      },
+      onError: (err) => {
+        cursor.remove();
+        const msg = String(err?.message || err);
+        const looksAuth = msg.includes("401") || msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("unauthorized");
+
+        ui.streamEl.textContent = looksAuth
+          ? "Sorry — the Gemini API request failed. Your API key may be invalid.\n\nTip: paste a valid key that starts with AIza... and click Save Key, then try again."
+          : "Sorry — I couldn't reach the AI right now.\n\nPlease check your internet connection and try again.";
+
+        if (topic && FILES[topic]) ui.addFiles(FILES[topic]);
+        setInputEnabled(true);
+        scrollBottom();
+      }
+    });
+  }
+
+  function quickAsk(text) {
+    if (isBusy) return;
+    userInput.value = text;
+    sendMessage();
+  }
+
+  function chipSend(text) { quickAsk(text); }
+
+  userInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // API KEY SAVE/RESTORE
+  // ────────────────────────────────────────────────────────────────────────────
+  const saveKeyBtn = document.getElementById("saveKeyBtn");
+  const apiKeyInput = document.getElementById("apiKey");
+  const keyDot = document.getElementById("keyDot");
+  const keyStatusText = document.getElementById("keyStatusText");
+
+  function refreshKeyUI() {
+    const key = getApiKey();
+    const ok = !!key;
+    keyDot.classList.toggle("ok", ok);
+    keyStatusText.textContent = ok ? "Key saved" : "Key not saved";
+    setInputEnabled(ok);
+  }
+
+  saveKeyBtn.addEventListener("click", () => {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      keyDot.classList.remove("ok");
+      keyStatusText.textContent = "Please paste a key first";
+      return;
+    }
+
+    localStorage.setItem("studybot_google_key", key);
+    apiKeyInput.value = "";
+    refreshKeyUI();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Greeting message
+  // ────────────────────────────────────────────────────────────────────────────
+  (function init() {
+    refreshKeyUI();
+
+    const wrap = document.createElement("div");
+    wrap.className = "msg";
+
+    const av = document.createElement("div");
+    av.className = "msg-avatar";
+    av.textContent = "AI";
+
+    const body = document.createElement("div");
+    body.className = "msg-body";
+
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    meta.textContent = formatTime();
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent =
+      "👋 Hello! I'm StudyBot — your AI academic assistant.\n\n" +
+      "Paste your Google Gemini API key above, click Save Key, then ask any question.\n" +
+      "I will explain clearly and keep your conversation history for this session.";
+
+    body.appendChild(meta);
+    body.appendChild(bubble);
+    wrap.appendChild(av);
+    wrap.appendChild(body);
+
+    msgContainer.appendChild(wrap);
+    scrollBottom();
+  })();
+</script>
+</body>
+</html>
+
