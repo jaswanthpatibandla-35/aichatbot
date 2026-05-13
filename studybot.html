@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>StudyBot — AI Student Assistant</title>
+
+<!--
+  ╔═══════════════════════════════════════════════════════════════╗
+  ║  StudyBot — Google Gemini AI Student Assistant                ║
+  ║  Single HTML file · Runs 100% in the browser                  ║
+  ║                                                               ║
+  ║  HOW TO USE:                                                  ║
+  ║  1. Get free key → https://aistudio.google.com/apikey         ║
+  ║  2. Open this file in ANY browser (Chrome, Edge, Firefox)     ║
+  ║  3. Paste your AIza... key in the top bar → Save Key          ║
+  ║  4. Ask any academic question!                                ║
+  ║                                                               ║
+  ║  WHY "Failed to fetch" happened before:                       ║
+  ║  The previous version used ?alt=sse (streaming) which gets    ║
+  ║  blocked by browser CORS when opened as a local file.         ║
+  ║  This version uses the standard generateContent endpoint      ║
+  ║  (no streaming flag) which Gemini allows from browsers.       ║
+  ╚═══════════════════════════════════════════════════════════════╝
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<style>
+/* ── Reset & CSS Variables ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #f6f9ff;
+  --bg2:        #ffffff;
+  --bg3:        #eef4ff;
+  --text:       #0f172a;
+  --text2:      #4b5563;
+  --text3:      #9ca3af;
+  --border:     rgba(15,23,42,0.09);
+  --border2:    rgba(15,23,42,0.17);
+  --accent:     #2563eb;
+  --accent2:    #1d4ed8;
+  --accentSoft: rgba(37,99,235,0.09);
+  --green:      #16a34a;
+  --red:        #dc2626;
+  --font:       'Sora', sans-serif;
+  --mono:       'JetBrains Mono', monospace;
+  --radius:     14px;
+  --radius-sm:  10px;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.12), transparent), var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* ── Navbar ─────────────────────────────────────────────────── */
+nav {
+  width: 100%;
+  padding: 11px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  flex-wrap: wrap;
+}
+.logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff; display: flex; align-items: center;
+  justify-content: center; font-size: 15px; flex-shrink: 0;
+}
+.logo-text { font-size: 15px; font-weight: 700; letter-spacing: -.3px; white-space: nowrap; }
+.logo-text span { color: var(--accent); }
+
+/* key area */
+.api-wrap {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; justify-content: flex-end;
+}
+.api-wrap label { font-size: 12px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.api-input {
+  width: min(300px, 46vw); min-width: 160px;
+  padding: 8px 13px; border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: var(--bg2); outline: none;
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+}
+.api-input:focus { border-color: rgba(37,99,235,.45); box-shadow: 0 0 0 3px var(--accentSoft); }
+
+.btn {
+  padding: 8px 16px; border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: var(--bg2); color: var(--text);
+  cursor: pointer; font-weight: 600; font-size: 12.5px;
+  font-family: var(--font);
+  transition: transform .1s, background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn:hover  { background: var(--bg3); border-color: rgba(37,99,235,.28); }
+.btn:active { transform: scale(.97); }
+.btn.primary { border: none; background: linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; }
+.btn.primary:hover { filter: brightness(.95); }
+.btn.danger  { border-color: rgba(220,38,38,.28); color: var(--red); }
+.btn.danger:hover  { background: rgba(220,38,38,.06); }
+
+.key-status { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 5px; font-weight: 600; }
+.key-dot { width: 8px; height: 8px; border-radius: 50%; background: #d1d5db; transition: background .25s; }
+.key-dot.ok    { background: var(--green); }
+.key-dot.error { background: var(--red); }
+
+/* ── Main layout ────────────────────────────────────────────── */
+main { width: 100%; max-width: 900px; padding: 22px 16px 120px; display: flex; flex-direction: column; gap: 18px; flex: 1; }
+
+/* ── Hero ───────────────────────────────────────────────────── */
+.hero { text-align: center; padding: 6px 0 2px; }
+.hero h1 { font-size: 27px; font-weight: 700; letter-spacing: -.5px; margin-bottom: 6px; }
+.hero h1 span { background: linear-gradient(90deg,#2563eb,#7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.hero p { font-size: 13.5px; color: var(--text2); max-width: 500px; margin: 0 auto; }
+
+/* ── Setup banner ───────────────────────────────────────────── */
+.setup-banner {
+  background: linear-gradient(135deg,rgba(37,99,235,.07),rgba(124,58,237,.05));
+  border: 1px solid rgba(37,99,235,.18);
+  border-radius: var(--radius); padding: 16px 20px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.setup-banner.hidden { display: none; }
+.setup-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+.setup-banner h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.setup-banner ol { padding-left: 18px; font-size: 13px; color: var(--text2); line-height: 1.9; }
+.setup-banner a  { color: var(--accent); text-decoration: underline; }
+.setup-banner code { font-family: var(--mono); font-size: 12px; background: rgba(37,99,235,.1); padding: 1px 5px; border-radius: 4px; }
+
+/* ── Subject cards ──────────────────────────────────────────── */
+.subjects-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(138px,1fr)); gap: 10px; }
+.subject-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 13px 14px;
+  cursor: pointer; display: flex; align-items: center; gap: 11px;
+  transition: transform .12s, border-color .15s, background .15s;
+}
+.subject-card:hover  { border-color: rgba(37,99,235,.28); background: var(--bg3); transform: translateY(-1px); }
+.subject-card:active { transform: scale(.99); }
+.subject-icon  { font-size: 20px; }
+.subject-name  { font-size: 13px; font-weight: 700; }
+.subject-count { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+/* ── Chat shell ─────────────────────────────────────────────── */
+.chat-shell {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 6px 28px rgba(15,23,42,.05);
+}
+.chat-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg,#fff,var(--bg3));
+  display: flex; align-items: center; gap: 12px;
+}
+.chat-header-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  color: #fff; display: flex; align-items: center;
+  justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.chat-header-info h3 { font-size: 14px; font-weight: 700; }
+.chat-header-info p  { font-size: 12px; color: var(--text2); }
+
+/* ── Messages ───────────────────────────────────────────────── */
+.messages {
+  overflow-y: auto; padding: 18px;
+  display: flex; flex-direction: column; gap: 14px;
+  scroll-behavior: smooth;
+  min-height: 280px; max-height: 500px;
+}
+.messages::-webkit-scrollbar { width: 5px; }
+.messages::-webkit-scrollbar-thumb { background: rgba(37,99,235,.16); border-radius: 999px; }
+
+.msg { display: flex; gap: 10px; align-items: flex-start; animation: msgIn .22s ease both; }
+.msg.user { flex-direction: row-reverse; }
+@keyframes msgIn { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+
+.msg-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #f3f4f6; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  flex-shrink: 0; margin-top: 2px;
+}
+.msg.user .msg-avatar { background: rgba(37,99,235,.1); border-color: rgba(37,99,235,.2); color: var(--accent); }
+
+.msg-meta  { font-size: 11px; color: var(--text3); margin-bottom: 4px; font-weight: 600; }
+.msg-body  { max-width: 82%; display: flex; flex-direction: column; gap: 8px; }
+.msg.user .msg-body { align-items: flex-end; }
+
+.bubble {
+  padding: 10px 14px; border-radius: 16px; border-bottom-left-radius: 4px;
+  border: 1px solid var(--border); font-size: 13.5px; line-height: 1.75;
+  color: var(--text); background: #fff; white-space: pre-wrap; word-break: break-word;
+}
+.msg.user .bubble {
+  background: rgba(37,99,235,.09); border-color: rgba(37,99,235,.18);
+  border-radius: 16px; border-bottom-right-radius: 4px;
+}
+
+/* ── AI explanation card ────────────────────────────────────── */
+.content-card { width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border); overflow: hidden; background: #fff; }
+.content-card-header {
+  padding: 8px 13px; background: var(--bg3); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; color: var(--text2);
+}
+.content-card-header .tag {
+  margin-left: auto; font-size: 11px; padding: 2px 9px; border-radius: 999px;
+  background: rgba(37,99,235,.1); border: 1px solid rgba(37,99,235,.2);
+  color: var(--accent); font-weight: 700;
+}
+.content-card-body {
+  padding: 14px; font-size: 13.5px; line-height: 1.85;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+  max-height: 360px; overflow-y: auto;
+}
+.content-card-body::-webkit-scrollbar { width: 4px; }
+.content-card-body::-webkit-scrollbar-thumb { background: rgba(37,99,235,.16); border-radius: 999px; }
+
+/* animated dots while waiting (replaces streaming cursor) */
+.thinking-dots span {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin: 0 2px; vertical-align: middle;
+  animation: tdot 1.2s infinite;
+}
+.thinking-dots span:nth-child(2) { animation-delay: .2s; }
+.thinking-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes tdot { 0%,60%,100%{transform:translateY(0);opacity:.35} 30%{transform:translateY(-5px);opacity:1} }
+
+/* ── Typing indicator ───────────────────────────────────────── */
+.typing-wrap { display: flex; gap: 10px; align-items: flex-start; }
+.typing-bubble {
+  padding: 11px 14px; background: #fff; border: 1px solid var(--border);
+  border-radius: 16px; border-bottom-left-radius: 4px;
+  display: flex; gap: 5px; align-items: center;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(15,23,42,.25); animation: bounce 1.2s infinite; }
+.dot:nth-child(2){animation-delay:.15s} .dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-5px);opacity:1} }
+
+/* ── File cards ─────────────────────────────────────────────── */
+.file-section { width: 100%; margin-top: 6px; }
+.file-section-label {
+  font-size: 12px; color: var(--text2); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px; font-weight: 700;
+}
+.file-section-label::before,.file-section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.file-card {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; margin-bottom: 8px; transition: border-color .15s;
+}
+.file-card:hover { border-color: rgba(37,99,235,.22); }
+.file-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0; background: var(--bg3); border: 1px solid var(--border);
+}
+.file-meta { flex: 1; min-width: 0; }
+.file-name {
+  font-size: 12px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono);
+}
+.file-size { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.dl-btn {
+  font-size: 12px; padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text2); cursor: pointer; font-family: var(--font); font-weight: 700;
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.dl-btn:hover { background: var(--bg3); border-color: rgba(37,99,235,.28); color: var(--accent); }
+.dl-btn.done  { background: rgba(22,163,74,.08); border-color: rgba(22,163,74,.25); color: var(--green); cursor: default; }
+
+/* ── Quick chips ────────────────────────────────────────────── */
+.chips {
+  padding: 10px 14px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; flex-wrap: wrap; background: rgba(255,255,255,.7);
+}
+.chip {
+  font-size: 12px; padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff; color: var(--text2);
+  cursor: pointer; font-weight: 600; font-family: var(--font); transition: all .15s; white-space: nowrap;
+}
+.chip:hover { border-color: rgba(37,99,235,.28); background: var(--bg3); color: var(--accent); }
+
+/* ── Floating input bar ─────────────────────────────────────── */
+.input-bar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: 14px; width: min(900px, calc(100% - 28px));
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--border);
+  border-radius: 999px; padding: 7px;
+  display: flex; gap: 8px; align-items: center;
+  box-shadow: 0 8px 30px rgba(15,23,42,.09);
+  backdrop-filter: blur(12px); z-index: 999;
+}
+.input-bar input {
+  flex: 1; font-size: 13.5px; font-family: var(--font);
+  padding: 10px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: #fff;
+  color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.input-bar input:focus { border-color: rgba(37,99,235,.45); box-shadow: 0 0 0 3px var(--accentSoft); }
+.input-bar input::placeholder { color: #9ca3af; }
+.input-bar input:disabled { opacity: .5; cursor: not-allowed; }
+
+.send-btn {
+  width: 42px; height: 42px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg,#2563eb,#7c3aed);
+  color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform .1s, filter .15s;
+}
+.send-btn:hover:not(:disabled) { filter: brightness(.94); }
+.send-btn:active:not(:disabled) { transform: scale(.94); }
+.send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+footer {
+  width: 100%; text-align: center; padding: 16px;
+  font-size: 12px; color: var(--text3);
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,.5);
+}
+
+@media (max-width: 600px) {
+  .api-input { width: 56vw; min-width: 130px; }
+  main { padding-bottom: 120px; }
+  .msg-body { max-width: 91%; }
+  .subjects-grid { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ──────────────────────────────────────────────── -->
+<nav>
+  <div class="logo">🎓</div>
+  <span class="logo-text">Study<span>Bot</span></span>
+
+  <div class="api-wrap">
+    <label for="apiKey">Gemini API Key</label>
+    <input id="apiKey" class="api-input" type="password"
+           placeholder="Paste AIza... key here" autocomplete="off"/>
+    <button class="btn primary" id="saveKeyBtn" type="button">Save Key</button>
+    <button class="btn danger"  id="clearKeyBtn" type="button" style="display:none">Clear</button>
+    <div class="key-status" aria-live="polite">
+      <span class="key-dot" id="keyDot"></span>
+      <span id="keyStatusText">No key</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Body ────────────────────────────────────────────────── -->
+<main>
+  <div class="hero">
+    <h1>Your <span>AI Student</span> Assistant</h1>
+    <p>Powered by Google Gemini · Ask anything · Runs entirely in your browser</p>
+  </div>
+
+  <!-- Setup instructions — auto-hides once key is saved -->
+  <div class="setup-banner" id="setupBanner">
+    <div class="setup-icon">🔑</div>
+    <div>
+      <h3>One-time setup — get your free Google Gemini API key</h3>
+      <ol>
+        <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> in a new tab</li>
+        <li>Sign in with your Google account (free, no credit card needed)</li>
+        <li>Click <strong>"Create API key"</strong> → copy the key (starts with <code>AIza</code>)</li>
+        <li>Paste it in the <strong>Gemini API Key</strong> box above → click <strong>Save Key</strong></li>
+        <li>Start asking questions! 🎉</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Subject shortcut cards -->
+  <div class="subjects-grid">
+    <div class="subject-card" onclick="quickAsk('Explain calculus: limits, derivatives and integration with examples')">
+      <span class="subject-icon">∫</span>
+      <div><div class="subject-name">Calculus</div><div class="subject-count">2 study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain Python programming: variables, loops, functions and OOP with examples')">
+      <span class="subject-icon">🐍</span>
+      <div><div class="subject-name">Python</div><div class="subject-count">2 study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain biology: cell structure, genetics, DNA replication and evolution')">
+      <span class="subject-icon">🧬</span>
+      <div><div class="subject-name">Biology</div><div class="subject-count">2 study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain chemistry: periodic table trends, bonding and reactions')">
+      <span class="subject-icon">⚗️</span>
+      <div><div class="subject-name">Chemistry</div><div class="subject-count">2 study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('Explain physics: Newton laws, energy conservation, waves and electricity')">
+      <span class="subject-icon">⚡</span>
+      <div><div class="subject-name">Physics</div><div class="subject-count">2 study files</div></div>
+    </div>
+    <div class="subject-card" onclick="quickAsk('How to write a good academic essay? Explain PEEL structure and citations')">
+      <span class="subject-icon">📝</span>
+      <div><div class="subject-name">Writing</div><div class="subject-count">2 study files</div></div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-shell">
+    <div class="chat-header">
+      <div class="chat-header-avatar">🤖</div>
+      <div class="chat-header-info">
+        <h3>StudyBot AI</h3>
+        <p>Google Gemini · Step-by-step answers · Remembers context</p>
+      </div>
+    </div>
+    <div class="messages" id="messages" aria-live="polite"></div>
+    <div class="chips" id="chips">
+      <button class="chip" type="button" onclick="chipSend('What is the Pythagorean theorem and how is it used?')">Pythagorean theorem</button>
+      <button class="chip" type="button" onclick="chipSend('How does photosynthesis work step by step?')">Photosynthesis</button>
+      <button class="chip" type="button" onclick="chipSend('Explain Newton\'s three laws of motion with examples')">Newton's laws</button>
+      <button class="chip" type="button" onclick="chipSend('What is DNA and how does replication work?')">DNA replication</button>
+      <button class="chip" type="button" onclick="chipSend('What are the best exam revision techniques?')">Exam tips</button>
+    </div>
+  </div>
+</main>
+
+<!-- Floating input -->
+<div class="input-bar">
+  <input id="userInput" type="text"
+         placeholder="Ask any academic question… press Enter to send"/>
+  <button class="send-btn" id="sendBtn" type="button"
+          onclick="sendMessage()" title="Send (Enter)">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+         stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"></line>
+      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+    </svg>
+  </button>
+</div>
+
+<footer>StudyBot AI · Google Gemini · No data stored on any server · Key lives only in your browser</footer>
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═════════════════════════════════════════════════════════════ -->
+<script>
+"use strict";
+
+/* ─────────────────────────────────────────────────────────────
+   STUDY FILE DATABASE
+───────────────────────────────────────────────────────────── */
+const FILES = {
+  calculus: [
+    { name:"Calculus_Notes_Ch1-5.txt", size:"3 KB", icon:"📄",
+      content:`CALCULUS STUDY NOTES — Chapters 1 to 5
+=====================================
+
+CHAPTER 1: LIMITS AND CONTINUITY
+• lim(x→a) f(x) = L  — f(x) approaches L as x→a
+• Squeeze Theorem: g(x) ≤ f(x) ≤ h(x) and lim g = lim h = L  →  lim f = L
+• Continuity at a: lim(x→a) f(x) = f(a)
+• L'Hopital's Rule: 0/0 or ∞/∞  →  lim f/g = lim f'/g'
+
+CHAPTER 2: DERIVATIVES
+• f'(x) = lim(h→0) [f(x+h)−f(x)] / h
+• Power Rule:    d/dx(xⁿ) = nxⁿ⁻¹
+• Product Rule:  (fg)' = f'g + fg'
+• Quotient Rule: (f/g)' = (f'g − fg') / g²
+• Chain Rule:    d/dx[f(g(x))] = f'(g(x))·g'(x)
+
+CHAPTER 3: INTEGRATION
+• ∫xⁿ dx = xⁿ⁺¹/(n+1) + C  (n ≠ −1)
+• Fundamental Theorem: ∫[a→b] f(x)dx = F(b)−F(a)
+• Substitution: u = g(x), du = g'(x)dx
+• By Parts: ∫u dv = uv − ∫v du
+
+CHAPTER 4: APPLICATIONS
+• Critical points: f'(x)=0 or undefined
+• Increasing: f'>0  |  Decreasing: f'<0
+• Concave up: f''>0  |  Concave down: f''<0
+
+CHAPTER 5: SERIES
+• Geometric: Σarⁿ = a/(1−r)  |r|<1
+• Taylor: f(x) = Σ f⁽ⁿ⁾(a)/n! · (x−a)ⁿ
+• eˣ = 1+x+x²/2!+x³/3!+…
+• sin x = x−x³/3!+x⁵/5!−…
+• cos x = 1−x²/2!+x⁴/4!−…`},
+    { name:"Derivative_Formula_Sheet.txt", size:"2 KB", icon:"📃",
+      content:`DERIVATIVE FORMULA SHEET
+=========================
+Power:      d/dx(xⁿ) = nxⁿ⁻¹
+Product:    (fg)' = f'g + fg'
+Quotient:   (f/g)' = (f'g−fg')/g²
+Chain:      d/dx[f(g(x))] = f'(g(x))g'(x)
+
+TRIG
+sin→cos  |  cos→−sin  |  tan→sec²
+sec→sec·tan  |  csc→−csc·cot  |  cot→−csc²
+
+INVERSE TRIG
+arcsin → 1/√(1−x²)  |  arccos → −1/√(1−x²)  |  arctan → 1/(1+x²)
+
+EXP / LOG
+eˣ → eˣ  |  aˣ → aˣ ln a  |  ln x → 1/x  |  log_a x → 1/(x ln a)`}
+  ],
+  python: [
+    { name:"Python_Cheat_Sheet.txt", size:"3 KB", icon:"📃",
+      content:`PYTHON CHEAT SHEET
+==================
+TYPES: int  float  str  bool  list  tuple  dict  set
+
+CONTROL FLOW
+if x>0: print("pos")
+elif x==0: print("zero")
+else: print("neg")
+
+for i in range(10): print(i)
+while cond: do_something()
+
+FUNCTIONS
+def greet(name, msg="Hi"): return f"{msg}, {name}!"
+square = lambda x: x**2
+
+LIST COMPREHENSIONS
+[x**2 for x in range(10)]
+[x for x in range(20) if x%2==0]
+
+CLASSES
+class Animal:
+    def __init__(self,name): self.name=name
+    def speak(self): return "..."
+class Dog(Animal):
+    def speak(self): return f"{self.name} barks!"
+
+ERROR HANDLING
+try:
+    x = 10/0
+except ZeroDivisionError as e:
+    print(e)
+finally:
+    print("done")
+
+FILE I/O
+with open("f.txt","r") as f: content=f.read()
+with open("f.txt","w") as f: f.write("hello")`},
+    { name:"Python_Practice_Exercises.txt", size:"2 KB", icon:"📃",
+      content:`PYTHON EXERCISES
+================
+BEGINNER
+1. FizzBuzz (1–100)
+2. Palindrome checker
+3. Fibonacci generator (first N)
+4. Remove duplicates, sort desc, keep >10
+
+INTERMEDIATE
+5. Word frequency counter (dict by count)
+6. Caesar cipher encode/decode
+7. Student class: add_grade, average, letter_grade
+8. File search: lines containing keyword
+
+ADVANCED
+9. Web scraper (requests + BeautifulSoup)
+10. REST client (jsonplaceholder.typicode.com)
+11. SQLite mini-DB: create/insert/update/query
+12. Decorators: @timer  @retry(n)  @cache`}
+  ],
+  biology: [
+    { name:"Biology_Revision_Guide.txt", size:"4 KB", icon:"📃",
+      content:`BIOLOGY REVISION GUIDE
+======================
+CELL THEORY
+1. All life made of cells
+2. Cell = basic unit of life
+3. Cells from pre-existing cells
+
+ORGANELLES
+Nucleus, Mitochondria, Ribosome, Rough/Smooth ER,
+Golgi, Lysosome, Chloroplast (plant), Cell Wall (plant)
+
+GENETICS
+DNA: double helix, A-T & C-G base pairs
+Replication: helicase → DNA polymerase → ligase
+Transcription: DNA → mRNA (nucleus)
+Translation: mRNA → protein (ribosome); codon = 3 bases = 1 AA
+Mendelian: dominant/recessive, Punnett square, 3:1 ratio
+
+EVOLUTION (Natural Selection)
+1. Variation exists  2. Traits inherited
+3. More offspring than survive  4. Fittest reproduce
+
+ECOSYSTEMS
+Trophic levels: Producer→1°→2°→3°→Decomposer (~10% energy each)
+Cycles: Carbon, Nitrogen, Water
+
+HUMAN PHYSIOLOGY
+Digestion: mouth→oesophagus→stomach→small intestine→large intestine
+Key enzymes: amylase (starch) | pepsin (protein) | lipase (fat)
+Heart: 4 chambers, SA node = pacemaker, double circulation
+Neuron: dendrites→cell body→axon→myelin sheath→terminals→synapse`},
+    { name:"Biology_Diagram_Labels.txt", size:"2 KB", icon:"📃",
+      content:`BIOLOGY DIAGRAM LABELS
+=======================
+ANIMAL CELL
+cell membrane, nucleus, nuclear envelope, nucleolus,
+mitochondria, ribosome, rough ER, smooth ER,
+Golgi apparatus, lysosome, cytoplasm, centriole
+
+PLANT CELL (extra)
+cell wall (cellulose), chloroplast, large central vacuole, plasmodesmata
+
+HEART
+R side: right atrium → tricuspid → right ventricle → pulmonary valve → lungs
+L side: pulmonary vein → left atrium → bicuspid → left ventricle → aorta → body
+
+NEURON
+dendrites → cell body → axon hillock → axon →
+myelin sheath (nodes of Ranvier) → terminals → synapse`}
+  ],
+  chemistry: [
+    { name:"Periodic_Table_Notes.txt", size:"3 KB", icon:"📃",
+      content:`PERIODIC TABLE NOTES
+====================
+118 elements · 7 periods · 18 groups
+Same period = same shells  |  Same group = same valence e⁻
+
+KEY GROUPS
+1  Alkali Metals:    Li Na K Rb Cs Fr  (+1, very reactive)
+2  Alkaline Earth:   Be Mg Ca Sr Ba Ra  (+2)
+17 Halogens:         F Cl Br I  (−1, form salts)
+18 Noble Gases:      He Ne Ar Kr Xe  (full shells, inert)
+
+TRENDS across period →
+Atomic radius ↓  |  Electronegativity ↑  |  Ionisation energy ↑
+
+TRENDS down group ↓
+Atomic radius ↑  |  Electronegativity ↓  |  Ionisation energy ↓
+
+COMMON IONS
++1: H Li Na K Ag       +2: Mg Ca Fe²⁺ Cu²⁺ Zn
++3: Al Fe³⁺            −1: F Cl Br I OH NO₃
+−2: O S SO₄ CO₃        −3: N PO₄`},
+    { name:"Chemistry_Equations.txt", size:"3 KB", icon:"📃",
+      content:`CHEMISTRY KEY EQUATIONS
+========================
+GAS LAWS
+PV=nRT (R=8.314 J/mol/K)  |  P₁V₁=P₂V₂  |  V₁/T₁=V₂/T₂
+
+THERMODYNAMICS
+ΔG = ΔH − TΔS  (spontaneous if ΔG<0)
+ΔH(rxn) = ΣΔHf(products) − ΣΔHf(reactants)
+
+ACIDS & BASES
+pH = −log[H⁺]  |  pOH = −log[OH⁻]  |  pH+pOH=14
+Henderson-Hasselbalch: pH = pKa + log([A⁻]/[HA])
+
+ELECTROCHEMISTRY
+E°cell = E°cathode − E°anode
+Nernst: E = E° − (RT/nF)lnQ  (F=96485 C/mol)
+
+KINETICS
+rate = k[A]^m[B]^n  |  t½ = 0.693/k (1st order)
+Arrhenius: k = Ae^(−Ea/RT)
+
+STOICHIOMETRY
+moles = mass/M  |  M(molarity) = mol/L  |  %yield=(actual/theoretical)×100`}
+  ],
+  physics: [
+    { name:"Physics_Formula_Sheet.txt", size:"3 KB", icon:"📃",
+      content:`PHYSICS FORMULA SHEET
+======================
+KINEMATICS
+v=u+at  |  s=ut+½at²  |  v²=u²+2as  |  s=(u+v)t/2
+
+FORCES & MOMENTUM
+F=ma  |  W=mg  |  p=mv  |  J=FΔt=Δp
+
+ENERGY & POWER
+KE=½mv²  |  PE=mgh  |  W=Fd cosθ  |  P=W/t=Fv
+
+CIRCULAR MOTION
+aₒ=v²/r=ω²r  |  Fₒ=mv²/r  |  ω=2πf=2π/T
+
+GRAVITATION
+F=Gm₁m₂/r²  (G=6.674×10⁻¹¹)  |  g=GM/r²
+
+WAVES
+v=fλ  |  Snell: n₁sinθ₁=n₂sinθ₂  |  n=c/v
+
+ELECTRICITY
+V=IR  |  P=IV=I²R=V²/R
+Series: R=R₁+R₂  |  Parallel: 1/R=1/R₁+1/R₂
+Coulomb: F=kq₁q₂/r²  (k=8.99×10⁹)
+
+QUANTUM
+E=hf  (h=6.626×10⁻³⁴)  |  λ=h/mv  |  E=mc²
+
+CONSTANTS
+c=3×10⁸ m/s  |  g=9.81 m/s²  |  e=1.6×10⁻¹⁹ C  |  Nₐ=6.022×10²³`},
+    { name:"Physics_Revision_Notes.txt", size:"3 KB", icon:"📃",
+      content:`PHYSICS REVISION NOTES
+======================
+SCALAR vs VECTOR
+Scalar: speed mass energy distance temperature
+Vector: velocity force displacement momentum acceleration
+
+PROJECTILE MOTION
+Horizontal: x = vₓt (constant)
+Vertical:   y = v_y·t − ½gt²
+Range: R = v₀²sin(2θ)/g  |  Height: h = v₀²sin²θ/(2g)
+
+CONSERVATION
+Energy: E_i = E_f (no friction)
+Momentum: p_before = p_after (no ext. force)
+Elastic: KE + p both conserved
+Inelastic: only p conserved
+
+KIRCHHOFF'S LAWS
+KCL: Σ currents into node = 0
+KVL: Σ voltages around loop = 0
+
+DOPPLER
+f_obs = f_src × (v±v_obs)/(v∓v_src)
+
+PHOTOELECTRIC EFFECT
+KE_max = hf − φ  |  Threshold: f₀ = φ/h
+de Broglie: λ = h/mv`}
+  ],
+  writing: [
+    { name:"Assignment_Template.txt", size:"2 KB", icon:"📃",
+      content:`ASSIGNMENT TEMPLATE
+===================
+[Name] [ID] [Course] [Lecturer] [Date] [Word count:]
+
+TITLE
+
+ABSTRACT (~150 words)
+Purpose · Method · Findings · Conclusion
+
+1. INTRODUCTION (10–15%)
+   Background → Aim → Thesis → Scope
+
+2. LITERATURE REVIEW (20–25%)
+   Summarise research: Author (Year) found that…
+   Identify gap your work fills.
+
+3. MAIN BODY (40–50%)
+   3.1  Point + evidence + analysis
+   3.2  Point + evidence + analysis
+   3.3  Point + evidence + analysis
+
+4. DISCUSSION (10–15%)
+   Interpret findings · Compare · Limitations
+
+5. CONCLUSION (5–10%)
+   Restate thesis · Summarise · No new ideas · Recommend
+
+REFERENCES
+APA: Smith, J. (2021). Title. Journal, 45(3), 123–145. DOI
+
+APPENDICES (if needed)`},
+    { name:"Essay_Writing_Guide.txt", size:"3 KB", icon:"📃",
+      content:`ESSAY WRITING GUIDE
+====================
+PEEL PARAGRAPH
+P — Point:       State main idea
+E — Evidence:    Fact/data/citation
+E — Explanation: Interpret the evidence
+L — Link:        Connect to question/next point
+
+EXAMPLE
+"One key factor is climate change's impact on biodiversity.
+[P] IPCC (2021) reports temperatures rose 1.1°C since 1850.
+[E] This forces species to migrate or adapt rapidly.
+[E] Such disruption shows the existential threat to ecosystems. [L]"
+
+USEFUL PHRASES
+"This essay argues that…"
+"According to [Author (Year)]…"
+"In contrast…" / "Similarly…"
+"Although X, nevertheless Y…"
+"In conclusion, this essay has argued…"
+
+AVOID ✗
+✗ "I think / I believe"
+✗ Contractions (don't → do not)
+✗ Vague words (a lot, very, thing)
+✗ New ideas in conclusion
+
+APA 7th CITATIONS
+(Smith, 2021)  |  (Smith & Jones, 2021)  |  (Smith et al., 2021)
+Direct quote: (Smith, 2021, p. 45)`}
+  ]
+};
+
+/* ─────────────────────────────────────────────────────────────
+   TOPIC DETECTION
+───────────────────────────────────────────────────────────── */
+const TOPIC_MAP = [
+  { kw:["calculus","derivative","integral","limit","differentiat","series","taylor","chain rule","integration"], topic:"calculus" },
+  { kw:["python","programming","code","coding","script","algorithm","function","class","loop","oop","object"], topic:"python" },
+  { kw:["biology","bio","cell","genetics","evolution","ecosystem","photosynthesis","dna","rna","protein","mitosis"], topic:"biology" },
+  { kw:["chemistry","chem","element","periodic","reaction","bond","acid","base","mole","equilibrium","oxidation"], topic:"chemistry" },
+  { kw:["physics","force","motion","wave","electric","quantum","energy","velocity","acceleration","momentum","gravity","newton"], topic:"physics" },
+  { kw:["essay","assignment","writing","paragraph","citation","reference","thesis","peel","academic","report"], topic:"writing" }
+];
+
+function detectTopic(text) {
+  const lower = text.toLowerCase();
+  for (const r of TOPIC_MAP) {
+    if (r.kw.some(k => lower.includes(k))) return r.topic;
+  }
+  return null;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DOM REFS
+───────────────────────────────────────────────────────────── */
+const msgContainer  = document.getElementById("messages");
+const userInput     = document.getElementById("userInput");
+const sendBtn       = document.getElementById("sendBtn");
+const chipsWrap     = document.getElementById("chips");
+const apiKeyInput   = document.getElementById("apiKey");
+const saveKeyBtn    = document.getElementById("saveKeyBtn");
+const clearKeyBtn   = document.getElementById("clearKeyBtn");
+const keyDot        = document.getElementById("keyDot");
+const keyStatusText = document.getElementById("keyStatusText");
+const setupBanner   = document.getElementById("setupBanner");
+
+let isBusy = false;
+// Gemini multi-turn history: [{role:"user"|"model", parts:[{text}]}]
+const history = [];
+
+/* ─────────────────────────────────────────────────────────────
+   API KEY  (stored in localStorage — never leaves the browser)
+───────────────────────────────────────────────────────────── */
+const LS_KEY = "studybot_gemini_v2";
+
+function getKey() { return localStorage.getItem(LS_KEY) || ""; }
+
+function refreshKeyUI() {
+  const k = getKey();
+  const ok = k.length > 10;
+  keyDot.className = "key-dot" + (ok ? " ok" : "");
+  keyStatusText.textContent = ok ? "Key saved ✓" : "No key";
+  clearKeyBtn.style.display = ok ? "inline-block" : "none";
+  setupBanner.classList.toggle("hidden", ok);
+  setEnabled(ok);
+}
+
+saveKeyBtn.addEventListener("click", () => {
+  const v = apiKeyInput.value.trim();
+  if (!v) { showKeyError("Paste a key first"); return; }
+  if (!v.startsWith("AIza")) { showKeyError("Key must start with AIza..."); return; }
+  localStorage.setItem(LS_KEY, v);
+  apiKeyInput.value = "";
+  refreshKeyUI();
+});
+
+clearKeyBtn.addEventListener("click", () => {
+  localStorage.removeItem(LS_KEY);
+  refreshKeyUI();
+});
+
+function showKeyError(msg) {
+  keyDot.className = "key-dot error";
+  keyStatusText.textContent = msg;
+  setTimeout(refreshKeyUI, 3000);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────────────────────── */
+function setEnabled(on) {
+  userInput.disabled = !on;
+  sendBtn.disabled   = !on;
+  isBusy             = !on;
+}
+
+function scrollBottom() { msgContainer.scrollTop = msgContainer.scrollHeight; }
+
+function fmt(d = new Date()) {
+  return d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+}
+
+function addUserMsg(text) {
+  chipsWrap.style.display = "none";
+  const w = document.createElement("div"); w.className = "msg user";
+  const av = document.createElement("div"); av.className="msg-avatar"; av.textContent="You";
+  const b  = document.createElement("div"); b.className="msg-body";
+  const m  = document.createElement("div"); m.className="msg-meta"; m.textContent=fmt();
+  const bbl= document.createElement("div"); bbl.className="bubble"; bbl.textContent=text;
+  b.appendChild(m); b.appendChild(bbl);
+  w.appendChild(av); w.appendChild(b);
+  msgContainer.appendChild(w); scrollBottom();
+}
+
+function showTyping() {
+  const w = document.createElement("div"); w.className="typing-wrap"; w.id="typing";
+  w.innerHTML=`<div class="msg-avatar">AI</div>
+    <div class="typing-bubble" aria-label="Thinking">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>`;
+  msgContainer.appendChild(w); scrollBottom();
+}
+function removeTyping() { const e=document.getElementById("typing"); if(e) e.remove(); }
+
+function dlFile(btn, file) {
+  const blob = new Blob([file.content],{type:"text/plain;charset=utf-8"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href=url; a.download=file.name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  btn.textContent="✓ Saved"; btn.classList.add("done"); btn.disabled=true;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BUILD BOT MESSAGE
+───────────────────────────────────────────────────────────── */
+function buildBotMsg(introText) {
+  const w  = document.createElement("div"); w.className="msg";
+  const av = document.createElement("div"); av.className="msg-avatar"; av.textContent="AI";
+  const b  = document.createElement("div"); b.className="msg-body";
+  const m  = document.createElement("div"); m.className="msg-meta"; m.textContent=fmt();
+  const bbl= document.createElement("div"); bbl.className="bubble"; bbl.textContent=introText;
+
+  // Explanation card with animated waiting dots
+  const card = document.createElement("div"); card.className="content-card";
+  card.innerHTML=`
+    <div class="content-card-header">
+      <span>📚 Explanation</span>
+      <span class="tag">Gemini AI</span>
+    </div>
+    <div class="content-card-body">
+      <span class="thinking-dots" id="tdots">
+        <span></span><span></span><span></span>
+      </span>
+    </div>`;
+
+  b.appendChild(m); b.appendChild(bbl); b.appendChild(card);
+  w.appendChild(av); w.appendChild(b);
+  msgContainer.appendChild(w); scrollBottom();
+
+  const bodyEl = card.querySelector(".content-card-body");
+
+  return {
+    // Call this once the full answer text arrives
+    setAnswer(text) {
+      bodyEl.innerHTML = "";           // remove dots
+      bodyEl.textContent = text;       // set real answer
+      scrollBottom();
+    },
+    // Show an error inside the card
+    setError(text) {
+      bodyEl.innerHTML = "";
+      bodyEl.style.color = "#dc2626";
+      bodyEl.textContent = text;
+      scrollBottom();
+    },
+    // Attach downloadable file cards under the message
+    addFiles(files) {
+      if (!files || !files.length) return;
+      const sec = document.createElement("div"); sec.className="file-section";
+      const lbl = document.createElement("div"); lbl.className="file-section-label";
+      lbl.textContent = "Related Study Files";
+      sec.appendChild(lbl);
+      files.forEach(f => {
+        const fc = document.createElement("div"); fc.className="file-card";
+        fc.innerHTML=`
+          <div class="file-icon">${f.icon}</div>
+          <div class="file-meta">
+            <div class="file-name">${f.name}</div>
+            <div class="file-size">${f.size}</div>
+          </div>
+          <button class="dl-btn" type="button">Download</button>`;
+        fc.querySelector(".dl-btn").addEventListener("click", function(){ dlFile(this,f); });
+        sec.appendChild(fc);
+      });
+      b.appendChild(sec); scrollBottom();
+    }
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GEMINI API CALL  — standard REST (no streaming)
+   ─────────────────────────────────────────────────────────────
+   ROOT CAUSE of "Failed to fetch":
+   The previous version added ?alt=sse to force SSE streaming.
+   SSE streaming from a local file:// page triggers a CORS
+   preflight that the Gemini API rejects.
+
+   FIX: use the plain :generateContent endpoint (no alt=sse,
+   no streaming).  Gemini allows this from any origin including
+   file:// pages because it's a simple POST with no preflight.
+   The full response arrives in one JSON object — no streaming
+   needed, and it works perfectly.
+───────────────────────────────────────────────────────────── */
+async function callGemini(userText) {
+  const key = getKey();
+  if (!key) throw new Error("No API key saved.");
+
+  // Add user turn
+  history.push({ role:"user", parts:[{ text: userText }] });
+
+  // Keep last 8 turns for context window efficiency
+  const ctx = history.slice(-8);
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+
+  const payload = {
+    systemInstruction: {
+      parts: [{
+        text: `You are StudyBot, a friendly expert AI tutor for students.
+When answering:
+- Give a direct 1-sentence answer first
+- Explain with clear structure: numbered steps, bullet points, or short paragraphs
+- Include definitions, formulas, or worked examples where useful
+- Use plain text only — no asterisks or hash symbols for markdown
+- Keep answers concise and exam-focused (max 300 words)
+- End with one tip or mnemonic if helpful`
+      }]
+    },
+    contents: ctx,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 800
+    }
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  // Parse error responses
+  if (!res.ok) {
+    let errMsg = `HTTP ${res.status}`;
+    try {
+      const errData = await res.json();
+      errMsg = errData?.error?.message || errMsg;
+    } catch {}
+    if (res.status === 400) throw new Error("Bad request (400): " + errMsg);
+    if (res.status === 403) throw new Error("API key invalid or not enabled (403). Get a fresh key at aistudio.google.com/apikey");
+    if (res.status === 429) throw new Error("Rate limit reached (429). Wait a few seconds and try again.");
+    throw new Error(errMsg);
+  }
+
+  const data = await res.json();
+
+  // Extract text from Gemini response structure
+  const text =
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+    data?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") ||
+    "";
+
+  if (!text) throw new Error("Gemini returned an empty response. Try rephrasing your question.");
+
+  // Store model reply in history for multi-turn context
+  history.push({ role:"model", parts:[{ text }] });
+
+  return text;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SEND MESSAGE
+───────────────────────────────────────────────────────────── */
+async function sendMessage() {
+  if (isBusy) return;
+  const text = userInput.value.trim();
+  if (!text) return;
+
+  if (!getKey()) {
+    addUserMsg(text);
+    userInput.value = "";
+    const ui = buildBotMsg("You need to save your Gemini API key first.");
+    ui.setAnswer(
+      "Please paste your Google Gemini API key in the top bar (starts with AIza...) and click Save Key.\n\n" +
+      "You can get a free key at: https://aistudio.google.com/apikey\n\n" +
+      "No credit card is needed — just sign in with your Google account."
+    );
+    return;
+  }
+
+  userInput.value = "";
+  addUserMsg(text);
+  setEnabled(false);
+  showTyping();
+
+  // Short pause so typing dots show
+  await new Promise(r => setTimeout(r, 300));
+  removeTyping();
+
+  const topic = detectTopic(text);
+  const intro = topic
+    ? `Here's an explanation — plus ${FILES[topic].length} study file(s) to download below:`
+    : "Here's my answer:";
+
+  const ui = buildBotMsg(intro);
+
+  try {
+    const answer = await callGemini(text);
+    ui.setAnswer(answer);
+    if (topic && FILES[topic]) ui.addFiles(FILES[topic]);
+  } catch (err) {
+    // Remove the failed user turn from history so it doesn't corrupt future calls
+    if (history.length && history[history.length-1].role === "user") history.pop();
+
+    const msg = String(err?.message || err);
+    const isKeyErr =
+      msg.includes("403") || msg.includes("401") ||
+      msg.toLowerCase().includes("api key") ||
+      msg.toLowerCase().includes("invalid");
+
+    ui.setError(
+      isKeyErr
+        ? "API key error: " + msg + "\n\nPlease click 'Clear' and save a fresh key from aistudio.google.com/apikey"
+        : "Request failed: " + msg + "\n\nCheck your internet connection and try again."
+    );
+
+    if (topic && FILES[topic]) ui.addFiles(FILES[topic]);
+  } finally {
+    setEnabled(true);
+    userInput.focus();
+    scrollBottom();
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SHORTCUTS
+───────────────────────────────────────────────────────────── */
+function quickAsk(text) { if(isBusy) return; userInput.value=text; sendMessage(); }
+function chipSend(text) { quickAsk(text); }
+userInput.addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey) sendMessage(); });
+
+/* ─────────────────────────────────────────────────────────────
+   INIT — greeting + restore key
+───────────────────────────────────────────────────────────── */
+(function init() {
+  refreshKeyUI();
+
+  const w  = document.createElement("div"); w.className="msg";
+  const av = document.createElement("div"); av.className="msg-avatar"; av.textContent="AI";
+  const b  = document.createElement("div"); b.className="msg-body";
+  const m  = document.createElement("div"); m.className="msg-meta"; m.textContent=fmt();
+  const bbl= document.createElement("div"); bbl.className="bubble";
+
+  const hasKey = !!getKey();
+  bbl.textContent = hasKey
+    ? "👋 Hello! I'm StudyBot — your AI academic assistant.\n\nYour Gemini key is saved and ready. Ask me any question — I'll explain clearly and attach downloadable study files!"
+    : "👋 Hello! I'm StudyBot — your AI academic assistant.\n\nTo get started, paste your free Google Gemini API key in the top bar and click Save Key.\n\nThen ask me anything — maths, science, programming, essays and more!";
+
+  b.appendChild(m); b.appendChild(bbl);
+  w.appendChild(av); w.appendChild(b);
+  msgContainer.appendChild(w);
+  scrollBottom();
+})();
+</script>
+</body>
+</html>
